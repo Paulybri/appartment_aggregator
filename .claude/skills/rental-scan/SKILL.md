@@ -30,11 +30,12 @@ From each listing found:
     - If it does meet deal breaking requirement, add the an entry to the Prospects file.
   Entries should follow this format:
   ```
-    SCORE,PRICE,LOCATION,POSTED,LISTING LINK,HIDDEN,VIEWED
+    SCORE,PRICE,LOCATION,POSTED,LISTING LINK,HIDDEN,VIEWED,FAVORITE
   ```
   POSTED is the date time since when the listing was posted. If the listing does not have a posted date, leave it empty.
   HIDDEN is `false` for new entries. The user toggles it from the viewer; never change the HIDDEN value of an existing entry.
   VIEWED is `false` for new entries. The viewer sets it when the user opens a listing; never change the VIEWED value of an existing entry.
+  FAVORITE is `false` for new entries. The user toggles it from the viewer (heart icon); never change the FAVORITE value of an existing entry.
   4) Start the local webpage server to serve the Prospects file (it also saves the HIDDEN flag when the user hides a listing). The user will be able to open the Prospects file in a browser and click on the links to see the listings:
   ```
     python3 viewer/server.py

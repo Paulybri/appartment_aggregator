@@ -36,6 +36,10 @@
   button.hide { padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--fg); cursor: pointer; font-size: 12px; }
   button.hide:hover { border-color: var(--muted); }
   tr.hidden td { opacity: 0.45; }
+  button.fav { border: 0; background: none; padding: 0 2px; cursor: pointer; font-size: 20px; line-height: 1; color: var(--muted); }
+  button.fav.on { color: #e0245e; }
+  button.fav:hover { transform: scale(1.15); }
+  th.favcol { width: 1%; }
   #fallback { display: none; margin: 12px 0; padding: 12px; border: 1px dashed var(--line); border-radius: 8px; }
 </style>
 </head>
@@ -46,6 +50,7 @@
   <label>Search <input id="q" type="search" placeholder="address, title…"></label>
   <label>Min score <input id="minScore" type="number" min="0" max="100" value="0"></label>
   <label>Max price <input id="maxPrice" type="number" min="0" step="50" placeholder="any"></label>
+  <label><input id="favOnly" type="checkbox"> Favorites only</label>
   <label><input id="showHidden" type="checkbox"> Show hidden</label>
   <span id="status">Loading…</span>
 </div>
@@ -60,6 +65,7 @@
 <div class="wrap">
   <table>
     <thead><tr>
+      <th data-key="favorite" class="favcol" title="Sort by favorite">♥</th>
       <th data-key="score" data-dir="desc">Score</th>
       <th data-key="price">Price</th>
       <th data-key="posted">Posted</th>
@@ -75,10 +81,11 @@ const CSV_URL = '../output/prospects.csv';
 let data = [];
 let sort = { key: 'score', dir: 'desc' };
 
-// CSV layout: SCORE,PRICE,LOCATION,POSTED,LISTING LINK,HIDDEN,VIEWED
-// HIDDEN and VIEWED are saved back to prospects.csv through viewer/server.py
+// CSV layout: SCORE,PRICE,LOCATION,POSTED,LISTING LINK,HIDDEN,VIEWED,FAVORITE
+// HIDDEN, VIEWED and FAVORITE are saved back to prospects.csv through viewer/server.py
 let hidden = new Set();
 let viewed = new Set();
+let favorites = new Set();
 async function saveFlag(name, url, value) {
   const r = await fetch('/api/' + name, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -160,9 +167,11 @@ function load(text) {
     url: (r[4] || '').trim(),
     hidden: /^(true|1|yes)$/i.test((r[5] || '').trim()),
     viewed: /^(true|1|yes)$/i.test((r[6] || '').trim()),
+    favorite: /^(true|1|yes)$/i.test((r[7] || '').trim()),
   })).map(d => ({ ...d, title: titleFromUrl(d.url) }));
   hidden = new Set(data.filter(d => d.hidden).map(d => d.url));
   viewed = new Set(data.filter(d => d.viewed).map(d => d.url));
+  favorites = new Set(data.filter(d => d.favorite).map(d => d.url));
   render();
   migrateLocalHidden();
 }
@@ -174,7 +183,10 @@ function render() {
   const minScore = parseFloat(document.getElementById('minScore').value) || 0;
   const maxPrice = parseFloat(document.getElementById('maxPrice').value);
   const showHidden = document.getElementById('showHidden').checked;
+  const favOnly = document.getElementById('favOnly').checked;
+  data.forEach(d => { d.favorite = favorites.has(d.url) ? 1 : 0; });
   const list = data.filter(d =>
+    (!favOnly || favorites.has(d.url)) &&
     (showHidden || !hidden.has(d.url)) &&
     d.score >= minScore &&
     (isNaN(maxPrice) || d.price === null || d.price <= maxPrice) &&
@@ -188,8 +200,10 @@ function render() {
   });
   document.getElementById('rows').innerHTML = list.map(d => {
     const isHidden = hidden.has(d.url);
+    const isFav = favorites.has(d.url);
     return `
     <tr class="${isHidden ? 'hidden' : ''}">
+      <td><button class="fav${isFav ? ' on' : ''}" data-url="${esc(d.url)}" title="${isFav ? 'Remove from favorites' : 'Add to favorites'}" aria-pressed="${isFav}">${isFav ? '♥' : '♡'}</button></td>
       <td class="score">${d.score}</td>
       <td>${d.price === null ? '—' : '$' + d.price.toLocaleString()}</td>
       <td class="posted" title="${d.posted === null ? '' : new Date(d.posted).toLocaleDateString()}">${postedAgo(d.posted)}</td>
@@ -198,7 +212,7 @@ function render() {
     </tr>`;
   }).join('');
   const hiddenCount = data.filter(d => hidden.has(d.url)).length;
-  document.getElementById('status').textContent = `${list.length} of ${data.length} listings · ${hiddenCount} hidden`;
+  document.getElementById('status').textContent = `${list.length} of ${data.length} listings · ${favorites.size} favorites · ${hiddenCount} hidden`;
 }
 
 document.querySelectorAll('th[data-key]').forEach(th => th.addEventListener('click', () => {
@@ -209,7 +223,7 @@ document.querySelectorAll('th[data-key]').forEach(th => th.addEventListener('cli
   th.dataset.dir = sort.dir;
   render();
 }));
-['q', 'minScore', 'maxPrice', 'showHidden'].forEach(id => document.getElementById(id).addEventListener('input', render));
+['q', 'minScore', 'maxPrice', 'favOnly', 'showHidden'].forEach(id => document.getElementById(id).addEventListener('input', render));
 
 document.getElementById('rows').addEventListener('click', async e => {
   const btn = e.target.closest('button.hide'); if (!btn) return;
@@ -219,6 +233,21 @@ document.getElementById('rows').addEventListener('click', async e => {
   try {
     await saveHidden(url, makeHidden);
     makeHidden ? hidden.add(url) : hidden.delete(url);
+    render();
+  } catch {
+    btn.disabled = false;
+    alert('Could not save to prospects.csv. Is the viewer running via "python3 viewer/server.py"?');
+  }
+});
+
+document.getElementById('rows').addEventListener('click', async e => {
+  const btn = e.target.closest('button.fav'); if (!btn) return;
+  const url = btn.dataset.url;
+  const makeFav = !favorites.has(url);
+  btn.disabled = true;
+  try {
+    await saveFlag('favorite', url, makeFav);
+    makeFav ? favorites.add(url) : favorites.delete(url);
     render();
   } catch {
     btn.disabled = false;

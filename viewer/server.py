@@ -1,4 +1,4 @@
-"""Serves the project folder and lets the viewer set the HIDDEN and VIEWED columns of output/prospects.csv.
+"""Serves the project folder and lets the viewer set the HIDDEN, VIEWED and FAVORITE columns of output/prospects.csv.
 
 Usage (from the project root):  python3 viewer/server.py   ->  http://localhost:8000/viewer/
 """
@@ -15,9 +15,9 @@ CSV_PATH = os.path.join(ROOT, "output", "prospects.csv")
 LOCK = threading.Lock()
 
 
-# Layout: SCORE,PRICE,LOCATION,POSTED,LISTING LINK,HIDDEN,VIEWED
+# Layout: SCORE,PRICE,LOCATION,POSTED,LISTING LINK,HIDDEN,VIEWED,FAVORITE
 URL_COL = 4
-FLAG_COLS = {"hidden": 5, "viewed": 6}  # endpoint /api/<name> -> column index
+FLAG_COLS = {"hidden": 5, "viewed": 6, "favorite": 7}  # endpoint /api/<name> -> column index
 
 
 def set_flag(url: str, col: int, value: bool) -> bool:
