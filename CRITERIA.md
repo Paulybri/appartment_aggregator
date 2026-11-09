@@ -2,6 +2,10 @@
 
 Something around $1500/month would be good. I could go up to 1600 or 1700 if the listing fits very well to criteria. Over 1700 is a deal-breaker.
 
+# Landlord
+
+I would prefer not having to do with agencies as they tend to be very inhumain and unhelpful. I would prefer my landlord to be an individual that does not own tens of buildings.
+
 # **Location**
 
 I would like to live in these neighbourhoods:
@@ -48,6 +52,8 @@ Living close to a metro station could be nice but is not major. I always move ar
 
 I would pefer living on a small residential street and avoid being on large streets such as Saint-Denis, Saint-Joseph, Papineau. I don't want it to be too noisy.
 
+I would like to be near a park. I particularly like Parc Laurier and Parc Baldwin and Parc Pere-Marquette.
+
 # **Building**
 
 I want to live in a plex type building. (Duplex, triplex, 4-plex, 5-plex, 6-plex). No more that 8 units. I like having my own front and back balcony. I do not want to live in a large apparment building, this is a dealbreaker.
@@ -59,9 +65,9 @@ I want to live in a plex type building. (Duplex, triplex, 4-plex, 5-plex, 6-plex
 - I much prefer older looking interiors with wooden floors, doors and molding. I find that very cozy.
 - I really don't like overly renovated all white units. they have a sterile feel that I hate. They often look cheap.
 - Would like it to be sunny
-- I want 2 separate bedrooms that both have closets/storage space
-- One bedroom will only be to sleep in, a queen sized bed needs to fit
-- The second bedroom is for my home office/music studio. It needs to be big enough for my desk & instruments (5 guitars and 1 piano). I will also need storage space for my gear.
+- I would like 2 separate bedrooms that both have closets/storage space, one big double room is also acceptable
+    - One room/section will only be to sleep in, a queen sized bed needs to fit
+    - The second room/section is for my home office/music studio. It needs to be big enough for my desk & instruments (5 guitars and 1 piano). I will also need storage space for my gear.
 - I want a living room that connects to the kitcken
 - I want a decent sized kitchen. I love cooking, i do lots of meal prep so I need a good amount of counter space and storage. I would love the kitchen to be sunny.
 - I want enough room for a dinning table, a couch with a tv area within the living room.
