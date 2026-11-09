@@ -28,6 +28,9 @@
   .title { font-weight: 500; }
   .addr { color: var(--muted); font-size: 12px; }
   a { color: var(--accent); }
+  button.hide { padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--fg); cursor: pointer; font-size: 12px; }
+  button.hide:hover { border-color: var(--muted); }
+  tr.hidden td { opacity: 0.45; }
   #fallback { display: none; margin: 12px 0; padding: 12px; border: 1px dashed var(--line); border-radius: 8px; }
 </style>
 </head>
@@ -38,12 +41,13 @@
   <label>Search <input id="q" type="search" placeholder="address, title…"></label>
   <label>Min score <input id="minScore" type="number" min="0" max="100" value="0"></label>
   <label>Max price <input id="maxPrice" type="number" min="0" step="50" placeholder="any"></label>
+  <label><input id="showHidden" type="checkbox"> Show hidden</label>
   <span id="status">Loading…</span>
 </div>
 
 <div id="fallback">
   Couldn't load <code>../output/prospects.csv</code> automatically (browsers block this when the page is opened as a local file).
-  Run <code>python3 -m http.server</code> from the project root and open
+  Run <code>python3 viewer/server.py</code> from the project root and open
   <code>http://localhost:8000/viewer/</code>, or pick the file manually:
   <input id="file" type="file" accept=".csv">
 </div>
@@ -55,6 +59,7 @@
       <th data-key="price">Price</th>
       <th data-key="title">Listing</th>
       <th>Link</th>
+      <th></th>
     </tr></thead>
     <tbody id="rows"></tbody>
   </table>
@@ -64,6 +69,30 @@
 const CSV_URL = '../output/prospects.csv';
 let data = [];
 let sort = { key: 'score', dir: 'desc' };
+
+// Hidden state lives in the HIDDEN column (5th) of prospects.csv, saved through viewer/server.py
+let hidden = new Set();
+async function saveHidden(url, isHidden) {
+  const r = await fetch('/api/hidden', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, hidden: isHidden }),
+  });
+  if (!r.ok) throw new Error(r.status);
+}
+
+// One-time migration of listings hidden with the earlier browser-only version
+async function migrateLocalHidden() {
+  let old = [];
+  try { old = JSON.parse(localStorage.getItem('rentalViewer.hidden') || '[]'); } catch { return; }
+  if (!old.length) return;
+  const known = new Set(data.map(d => d.url));
+  for (const url of old) {
+    if (!known.has(url) || hidden.has(url)) continue;
+    try { await saveHidden(url, true); hidden.add(url); } catch { return; }
+  }
+  try { localStorage.removeItem('rentalViewer.hidden'); } catch {}
+  render();
+}
 
 // RFC 4180-style parser (handles quoted fields, escaped quotes, commas/newlines in quotes)
 function parseCSV(text) {
@@ -103,8 +132,11 @@ function load(text) {
     price: r[1] && r[1].trim() !== '' ? parseFloat(r[1]) : null,
     location: (r[2] || '').trim(),
     url: (r[3] || '').trim(),
+    hidden: /^(true|1|yes)$/i.test((r[4] || '').trim()),
   })).map(d => ({ ...d, title: titleFromUrl(d.url) }));
+  hidden = new Set(data.filter(d => d.hidden).map(d => d.url));
   render();
+  migrateLocalHidden();
 }
 
 function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
@@ -113,7 +145,9 @@ function render() {
   const q = document.getElementById('q').value.toLowerCase();
   const minScore = parseFloat(document.getElementById('minScore').value) || 0;
   const maxPrice = parseFloat(document.getElementById('maxPrice').value);
+  const showHidden = document.getElementById('showHidden').checked;
   const list = data.filter(d =>
+    (showHidden || !hidden.has(d.url)) &&
     d.score >= minScore &&
     (isNaN(maxPrice) || d.price === null || d.price <= maxPrice) &&
     (!q || (d.title + ' ' + d.location).toLowerCase().includes(q))
@@ -124,14 +158,19 @@ function render() {
     if (x === null) return 1; if (y === null) return -1;
     return (typeof x === 'string' ? x.localeCompare(y) : x - y) * m;
   });
-  document.getElementById('rows').innerHTML = list.map(d => `
-    <tr>
+  document.getElementById('rows').innerHTML = list.map(d => {
+    const isHidden = hidden.has(d.url);
+    return `
+    <tr class="${isHidden ? 'hidden' : ''}">
       <td class="score">${d.score}</td>
       <td>${d.price === null ? '—' : '$' + d.price.toLocaleString()}</td>
       <td><div class="title">${esc(d.title)}</div><div class="addr">${esc(d.location)}</div></td>
       <td><a href="${esc(d.url)}" target="_blank" rel="noopener">Open ↗</a></td>
-    </tr>`).join('');
-  document.getElementById('status').textContent = `${list.length} of ${data.length} listings`;
+      <td><button class="hide" data-url="${esc(d.url)}">${isHidden ? 'Unhide' : 'Hide'}</button></td>
+    </tr>`;
+  }).join('');
+  const hiddenCount = data.filter(d => hidden.has(d.url)).length;
+  document.getElementById('status').textContent = `${list.length} of ${data.length} listings · ${hiddenCount} hidden`;
 }
 
 document.querySelectorAll('th[data-key]').forEach(th => th.addEventListener('click', () => {
@@ -142,7 +181,22 @@ document.querySelectorAll('th[data-key]').forEach(th => th.addEventListener('cli
   th.dataset.dir = sort.dir;
   render();
 }));
-['q', 'minScore', 'maxPrice'].forEach(id => document.getElementById(id).addEventListener('input', render));
+['q', 'minScore', 'maxPrice', 'showHidden'].forEach(id => document.getElementById(id).addEventListener('input', render));
+
+document.getElementById('rows').addEventListener('click', async e => {
+  const btn = e.target.closest('button.hide'); if (!btn) return;
+  const url = btn.dataset.url;
+  const makeHidden = !hidden.has(url);
+  btn.disabled = true;
+  try {
+    await saveHidden(url, makeHidden);
+    makeHidden ? hidden.add(url) : hidden.delete(url);
+    render();
+  } catch {
+    btn.disabled = false;
+    alert('Could not save to prospects.csv. Is the viewer running via "python3 viewer/server.py"?');
+  }
+});
 
 document.getElementById('file').addEventListener('change', e => {
   const f = e.target.files[0]; if (!f) return;
