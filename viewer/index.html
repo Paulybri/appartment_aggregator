@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rental Prospects</title>
 <style>
-  :root { --bg:#fafafa; --card:#fff; --fg:#222; --muted:#777; --line:#eee; --head:#333; --hover:#f3f7ff; --accent:#2b6cb0; }
+  :root { --bg:#fafafa; --card:#fff; --fg:#222; --muted:#777; --line:#eee; --head:#333; --hover:#f3f7ff; --accent:#2b6cb0; --visited:#6b21a8; }
   @media (prefers-color-scheme: dark) {
-    :root { --bg:#16181c; --card:#1f2228; --fg:#e6e6e6; --muted:#999; --line:#2c3038; --head:#0f1114; --hover:#262b35; --accent:#7ab3f0; }
+    :root { --bg:#16181c; --card:#1f2228; --fg:#e6e6e6; --muted:#999; --line:#2c3038; --head:#0f1114; --hover:#262b35; --accent:#7ab3f0; --visited:#c39bf0; }
   }
   * { box-sizing: border-box; }
   body { font-family: system-ui, sans-serif; margin: 0; padding: 24px 16px; background: var(--bg); color: var(--fg); }
@@ -29,8 +29,9 @@
   .title { font-weight: 500; }
   .addr { color: var(--muted); font-size: 12px; }
   a { color: var(--accent); }
-  a.listing { display: block; color: inherit; text-decoration: none; }
-  a.listing .title { color: var(--accent); }
+  a.listing { display: block; color: var(--accent); text-decoration: none; }
+  a.listing.viewed { color: var(--visited); }  /* VIEWED column in prospects.csv */
+  a.listing .title { color: inherit; }
   a.listing:hover .title { text-decoration: underline; }
   button.hide { padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--fg); cursor: pointer; font-size: 12px; }
   button.hide:hover { border-color: var(--muted); }
@@ -74,16 +75,18 @@ const CSV_URL = '../output/prospects.csv';
 let data = [];
 let sort = { key: 'score', dir: 'desc' };
 
-// CSV layout: SCORE,PRICE,LOCATION,POSTED,LISTING LINK,HIDDEN
-// Hidden state lives in the HIDDEN column (6th) of prospects.csv, saved through viewer/server.py
+// CSV layout: SCORE,PRICE,LOCATION,POSTED,LISTING LINK,HIDDEN,VIEWED
+// HIDDEN and VIEWED are saved back to prospects.csv through viewer/server.py
 let hidden = new Set();
-async function saveHidden(url, isHidden) {
-  const r = await fetch('/api/hidden', {
+let viewed = new Set();
+async function saveFlag(name, url, value) {
+  const r = await fetch('/api/' + name, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url, hidden: isHidden }),
+    body: JSON.stringify({ url, [name]: value }),
   });
   if (!r.ok) throw new Error(r.status);
 }
+const saveHidden = (url, isHidden) => saveFlag('hidden', url, isHidden);
 
 // One-time migration of listings hidden with the earlier browser-only version
 async function migrateLocalHidden() {
@@ -156,8 +159,10 @@ function load(text) {
     posted: parseDate(r[3]),
     url: (r[4] || '').trim(),
     hidden: /^(true|1|yes)$/i.test((r[5] || '').trim()),
+    viewed: /^(true|1|yes)$/i.test((r[6] || '').trim()),
   })).map(d => ({ ...d, title: titleFromUrl(d.url) }));
   hidden = new Set(data.filter(d => d.hidden).map(d => d.url));
+  viewed = new Set(data.filter(d => d.viewed).map(d => d.url));
   render();
   migrateLocalHidden();
 }
@@ -188,7 +193,7 @@ function render() {
       <td class="score">${d.score}</td>
       <td>${d.price === null ? '—' : '$' + d.price.toLocaleString()}</td>
       <td class="posted" title="${d.posted === null ? '' : new Date(d.posted).toLocaleDateString()}">${postedAgo(d.posted)}</td>
-      <td><a class="listing" href="${esc(d.url)}" target="_blank" rel="noopener"><div class="title">${esc(d.title)}</div><div class="addr">${esc(d.location)}</div></a></td>
+      <td><a class="listing${viewed.has(d.url) ? ' viewed' : ''}" href="${esc(d.url)}" target="_blank" rel="noopener"><div class="title">${esc(d.title)}</div><div class="addr">${esc(d.location)}</div></a></td>
       <td><button class="hide" data-url="${esc(d.url)}">${isHidden ? 'Unhide' : 'Hide'}</button></td>
     </tr>`;
   }).join('');
@@ -220,6 +225,19 @@ document.getElementById('rows').addEventListener('click', async e => {
     alert('Could not save to prospects.csv. Is the viewer running via "python3 viewer/server.py"?');
   }
 });
+
+// Opening a listing (left or middle click) marks it viewed. The link still opens even if saving fails.
+function markViewed(e) {
+  if (e.type === 'auxclick' && e.button !== 1) return;
+  const a = e.target.closest('a.listing'); if (!a) return;
+  const url = a.getAttribute('href');
+  if (viewed.has(url)) return;
+  viewed.add(url);
+  a.classList.add('viewed');
+  saveFlag('viewed', url, true).catch(() => { viewed.delete(url); a.classList.remove('viewed'); });
+}
+document.getElementById('rows').addEventListener('click', markViewed);
+document.getElementById('rows').addEventListener('auxclick', markViewed);
 
 document.getElementById('file').addEventListener('change', e => {
   const f = e.target.files[0]; if (!f) return;

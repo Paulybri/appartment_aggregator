@@ -1,4 +1,4 @@
-"""Serves the project folder and lets the viewer toggle the HIDDEN column of output/prospects.csv.
+"""Serves the project folder and lets the viewer set the HIDDEN and VIEWED columns of output/prospects.csv.
 
 Usage (from the project root):  python3 viewer/server.py   ->  http://localhost:8000/viewer/
 """
@@ -15,18 +15,21 @@ CSV_PATH = os.path.join(ROOT, "output", "prospects.csv")
 LOCK = threading.Lock()
 
 
-def set_hidden(url: str, hidden: bool) -> bool:
-    """Set the HIDDEN column (6th) for the row whose LISTING LINK (5th) matches url. Returns True if found.
+# Layout: SCORE,PRICE,LOCATION,POSTED,LISTING LINK,HIDDEN,VIEWED
+URL_COL = 4
+FLAG_COLS = {"hidden": 5, "viewed": 6}  # endpoint /api/<name> -> column index
 
-    Layout: SCORE,PRICE,LOCATION,POSTED,LISTING LINK,HIDDEN
-    """
+
+def set_flag(url: str, col: int, value: bool) -> bool:
+    """Set a true/false column for the row whose LISTING LINK matches url. Returns True if found."""
     with LOCK:
         with open(CSV_PATH, newline="", encoding="utf-8") as f:
             rows = list(csv.reader(f))
         found = False
         for row in rows:
-            if len(row) >= 5 and row[4].strip() == url:
-                row[5:] = ["true" if hidden else "false"]
+            if len(row) > URL_COL and row[URL_COL].strip() == url:
+                row.extend(["false"] * (len(FLAG_COLS) + URL_COL + 1 - len(row)))  # pad short rows
+                row[col] = "true" if value else "false"
                 found = True
         if found:
             fd, tmp = tempfile.mkstemp(dir=os.path.dirname(CSV_PATH), suffix=".csv")
@@ -38,14 +41,15 @@ def set_hidden(url: str, hidden: bool) -> bool:
 
 class Handler(SimpleHTTPRequestHandler):
     def do_POST(self):
-        if self.path != "/api/hidden":
+        name = self.path.removeprefix("/api/")
+        if not self.path.startswith("/api/") or name not in FLAG_COLS:
             self.send_error(404)
             return
         try:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
-            ok = set_hidden(str(body["url"]), bool(body["hidden"]))
+            ok = set_flag(str(body["url"]), FLAG_COLS[name], bool(body[name]))
         except (ValueError, KeyError, TypeError):
-            self.send_error(400, "Expected JSON {url, hidden}")
+            self.send_error(400, f"Expected JSON {{url, {name}}}")
             return
         if not ok:
             self.send_error(404, "Listing not found in prospects.csv")
