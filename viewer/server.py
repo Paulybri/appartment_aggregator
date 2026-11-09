@@ -16,14 +16,17 @@ LOCK = threading.Lock()
 
 
 def set_hidden(url: str, hidden: bool) -> bool:
-    """Set the HIDDEN column (5th) for the row whose LISTING LINK matches url. Returns True if found."""
+    """Set the HIDDEN column (6th) for the row whose LISTING LINK (5th) matches url. Returns True if found.
+
+    Layout: SCORE,PRICE,LOCATION,POSTED,LISTING LINK,HIDDEN
+    """
     with LOCK:
         with open(CSV_PATH, newline="", encoding="utf-8") as f:
             rows = list(csv.reader(f))
         found = False
         for row in rows:
-            if len(row) >= 4 and row[3].strip() == url:
-                row[4:] = ["true" if hidden else "false"]
+            if len(row) >= 5 and row[4].strip() == url:
+                row[5:] = ["true" if hidden else "false"]
                 found = True
         if found:
             fd, tmp = tempfile.mkstemp(dir=os.path.dirname(CSV_PATH), suffix=".csv")

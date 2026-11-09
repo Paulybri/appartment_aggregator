@@ -25,6 +25,7 @@
   th[data-dir="desc"]::after { content: " ▼"; }
   tr:hover td { background: var(--hover); }
   .score { font-weight: 700; }
+  .posted { white-space: nowrap; color: var(--muted); }
   .title { font-weight: 500; }
   .addr { color: var(--muted); font-size: 12px; }
   a { color: var(--accent); }
@@ -60,6 +61,7 @@
     <thead><tr>
       <th data-key="score" data-dir="desc">Score</th>
       <th data-key="price">Price</th>
+      <th data-key="posted">Posted</th>
       <th data-key="title">Listing</th>
       <th></th>
     </tr></thead>
@@ -72,7 +74,8 @@ const CSV_URL = '../output/prospects.csv';
 let data = [];
 let sort = { key: 'score', dir: 'desc' };
 
-// Hidden state lives in the HIDDEN column (5th) of prospects.csv, saved through viewer/server.py
+// CSV layout: SCORE,PRICE,LOCATION,POSTED,LISTING LINK,HIDDEN
+// Hidden state lives in the HIDDEN column (6th) of prospects.csv, saved through viewer/server.py
 let hidden = new Set();
 async function saveHidden(url, isHidden) {
   const r = await fetch('/api/hidden', {
@@ -126,6 +129,23 @@ function titleFromUrl(url) {
   } catch { return url; }
 }
 
+// POSTED is a YYYY-MM-DD date; returns a timestamp (local midnight) or null
+function parseDate(s) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec((s || '').trim());
+  return m ? new Date(+m[1], m[2] - 1, +m[3]).getTime() : null;
+}
+
+function postedAgo(ts) {
+  if (ts === null) return '—';
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const days = Math.max(0, Math.round((today - ts) / 86400000));
+  if (days === 0) return 'Today';
+  if (days === 1) return '1 day';
+  if (days < 14) return `${days} days`;
+  const weeks = Math.floor(days / 7);
+  return weeks < 9 ? `${weeks} weeks` : `${Math.floor(days / 30)} months`;
+}
+
 function load(text) {
   let rows = parseCSV(text);
   if (rows.length && isNaN(parseFloat(rows[0][0]))) rows = rows.slice(1); // skip header if present
@@ -133,8 +153,9 @@ function load(text) {
     score: parseFloat(r[0]) || 0,
     price: r[1] && r[1].trim() !== '' ? parseFloat(r[1]) : null,
     location: (r[2] || '').trim(),
-    url: (r[3] || '').trim(),
-    hidden: /^(true|1|yes)$/i.test((r[4] || '').trim()),
+    posted: parseDate(r[3]),
+    url: (r[4] || '').trim(),
+    hidden: /^(true|1|yes)$/i.test((r[5] || '').trim()),
   })).map(d => ({ ...d, title: titleFromUrl(d.url) }));
   hidden = new Set(data.filter(d => d.hidden).map(d => d.url));
   render();
@@ -166,6 +187,7 @@ function render() {
     <tr class="${isHidden ? 'hidden' : ''}">
       <td class="score">${d.score}</td>
       <td>${d.price === null ? '—' : '$' + d.price.toLocaleString()}</td>
+      <td class="posted" title="${d.posted === null ? '' : new Date(d.posted).toLocaleDateString()}">${postedAgo(d.posted)}</td>
       <td><a class="listing" href="${esc(d.url)}" target="_blank" rel="noopener"><div class="title">${esc(d.title)}</div><div class="addr">${esc(d.location)}</div></a></td>
       <td><button class="hide" data-url="${esc(d.url)}">${isHidden ? 'Unhide' : 'Hide'}</button></td>
     </tr>`;
