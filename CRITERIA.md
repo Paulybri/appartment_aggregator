@@ -1,3 +1,7 @@
+# **Price**
+
+Something around $1500/month would be good. I could go up to 1600 or 1700 if the listing fits very well to criteria. Over 1700 is a deal-breaker.
+
 # **Location**
 
 I would like to live in these neighbourhoods:
@@ -42,6 +46,8 @@ I would really prefer living nearby a grocerie store (500 meters away), I cook a
 
 Living close to a metro station could be nice but is not major. I always move around on my bike and rarely take public transport. I would like to live close to a bike lane to speed up my bike commute.
 
+I would pefer living on a small residential street and avoid being on large streets such as Saint-Denis, Saint-Joseph, Papineau. I don't want it to be too noisy.
+
 # **Building**
 
 I want to live in a plex type building. (Duplex, triplex, 4-plex, 5-plex, 6-plex). No more that 8 units. I like having my own front and back balcony. I do not want to live in a large apparment building, this is a dealbreaker.
@@ -49,6 +55,7 @@ I want to live in a plex type building. (Duplex, triplex, 4-plex, 5-plex, 6-plex
 # **Unit**
 
 - Ground or top floor is best, middle floor is OK
+- I do not want to live in a basement. This is a deal breaker
 - I much prefer older looking interiors with wooden floors, doors and molding. I find that very cozy.
 - I really don't like overly renovated all white units. they have a sterile feel that I hate. They often look cheap.
 - Would like it to be sunny

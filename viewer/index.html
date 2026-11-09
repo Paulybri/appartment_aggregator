@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rental Prospects</title>
+<style>
+  :root { --bg:#fafafa; --card:#fff; --fg:#222; --muted:#777; --line:#eee; --head:#333; --hover:#f3f7ff; --accent:#2b6cb0; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#16181c; --card:#1f2228; --fg:#e6e6e6; --muted:#999; --line:#2c3038; --head:#0f1114; --hover:#262b35; --accent:#7ab3f0; }
+  }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, sans-serif; margin: 0; padding: 24px 16px; background: var(--bg); color: var(--fg); }
+  h1 { margin: 0 0 12px; font-size: 22px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 14px; }
+  .controls label { font-size: 13px; color: var(--muted); display: flex; gap: 6px; align-items: center; }
+  input { padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--fg); }
+  input[type=number] { width: 80px; }
+  #status { font-size: 13px; color: var(--muted); }
+  .wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; background: var(--card); }
+  th, td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  th { background: var(--head); color: #fff; cursor: pointer; position: sticky; top: 0; user-select: none; white-space: nowrap; }
+  th[data-dir="asc"]::after { content: " ▲"; }
+  th[data-dir="desc"]::after { content: " ▼"; }
+  tr:hover td { background: var(--hover); }
+  .score { font-weight: 700; }
+  .title { font-weight: 500; }
+  .addr { color: var(--muted); font-size: 12px; }
+  a { color: var(--accent); }
+  #fallback { display: none; margin: 12px 0; padding: 12px; border: 1px dashed var(--line); border-radius: 8px; }
+</style>
+</head>
+<body>
+<h1>Rental Prospects</h1>
+
+<div class="controls">
+  <label>Search <input id="q" type="search" placeholder="address, title…"></label>
+  <label>Min score <input id="minScore" type="number" min="0" max="100" value="0"></label>
+  <label>Max price <input id="maxPrice" type="number" min="0" step="50" placeholder="any"></label>
+  <span id="status">Loading…</span>
+</div>
+
+<div id="fallback">
+  Couldn't load <code>../output/prospects.csv</code> automatically (browsers block this when the page is opened as a local file).
+  Run <code>python3 -m http.server</code> from the project root and open
+  <code>http://localhost:8000/viewer/</code>, or pick the file manually:
+  <input id="file" type="file" accept=".csv">
+</div>
+
+<div class="wrap">
+  <table>
+    <thead><tr>
+      <th data-key="score" data-dir="desc">Score</th>
+      <th data-key="price">Price</th>
+      <th data-key="title">Listing</th>
+      <th>Link</th>
+    </tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+</div>
+
+<script>
+const CSV_URL = '../output/prospects.csv';
+let data = [];
+let sort = { key: 'score', dir: 'desc' };
+
+// RFC 4180-style parser (handles quoted fields, escaped quotes, commas/newlines in quotes)
+function parseCSV(text) {
+  const rows = []; let row = [], field = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) {
+      if (c === '"' && text[i + 1] === '"') { field += '"'; i++; }
+      else if (c === '"') q = false;
+      else field += c;
+    } else if (c === '"') q = true;
+    else if (c === ',') { row.push(field); field = ''; }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i + 1] === '\n') i++;
+      row.push(field); rows.push(row); row = []; field = '';
+    } else field += c;
+  }
+  if (field || row.length) { row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(f => f.trim() !== ''));
+}
+
+// Readable title from the Kijiji URL slug
+function titleFromUrl(url) {
+  try {
+    const parts = new URL(url).pathname.split('/').filter(Boolean);
+    const slug = parts.length >= 2 ? parts[parts.length - 2] : '';
+    const t = decodeURIComponent(slug).replace(/-/g, ' ').trim();
+    return t ? t[0].toUpperCase() + t.slice(1) : url;
+  } catch { return url; }
+}
+
+function load(text) {
+  let rows = parseCSV(text);
+  if (rows.length && isNaN(parseFloat(rows[0][0]))) rows = rows.slice(1); // skip header if present
+  data = rows.map(r => ({
+    score: parseFloat(r[0]) || 0,
+    price: r[1] && r[1].trim() !== '' ? parseFloat(r[1]) : null,
+    location: (r[2] || '').trim(),
+    url: (r[3] || '').trim(),
+  })).map(d => ({ ...d, title: titleFromUrl(d.url) }));
+  render();
+}
+
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+
+function render() {
+  const q = document.getElementById('q').value.toLowerCase();
+  const minScore = parseFloat(document.getElementById('minScore').value) || 0;
+  const maxPrice = parseFloat(document.getElementById('maxPrice').value);
+  const list = data.filter(d =>
+    d.score >= minScore &&
+    (isNaN(maxPrice) || d.price === null || d.price <= maxPrice) &&
+    (!q || (d.title + ' ' + d.location).toLowerCase().includes(q))
+  );
+  const m = sort.dir === 'asc' ? 1 : -1;
+  list.sort((a, b) => {
+    const x = a[sort.key], y = b[sort.key];
+    if (x === null) return 1; if (y === null) return -1;
+    return (typeof x === 'string' ? x.localeCompare(y) : x - y) * m;
+  });
+  document.getElementById('rows').innerHTML = list.map(d => `
+    <tr>
+      <td class="score">${d.score}</td>
+      <td>${d.price === null ? '—' : '$' + d.price.toLocaleString()}</td>
+      <td><div class="title">${esc(d.title)}</div><div class="addr">${esc(d.location)}</div></td>
+      <td><a href="${esc(d.url)}" target="_blank" rel="noopener">Open ↗</a></td>
+    </tr>`).join('');
+  document.getElementById('status').textContent = `${list.length} of ${data.length} listings`;
+}
+
+document.querySelectorAll('th[data-key]').forEach(th => th.addEventListener('click', () => {
+  const key = th.dataset.key;
+  sort.dir = sort.key === key && sort.dir === 'desc' ? 'asc' : 'desc';
+  sort.key = key;
+  document.querySelectorAll('th').forEach(h => delete h.dataset.dir);
+  th.dataset.dir = sort.dir;
+  render();
+}));
+['q', 'minScore', 'maxPrice'].forEach(id => document.getElementById(id).addEventListener('input', render));
+
+document.getElementById('file').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  f.text().then(t => { document.getElementById('fallback').style.display = 'none'; load(t); });
+});
+
+fetch(CSV_URL, { cache: 'no-store' })
+  .then(r => { if (!r.ok) throw new Error(r.status); return r.text(); })
+  .then(load)
+  .catch(() => {
+    document.getElementById('status').textContent = 'Not loaded';
+    document.getElementById('fallback').style.display = 'block';
+  });
+</script>
+</body>
+</html>
