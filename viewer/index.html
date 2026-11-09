@@ -28,6 +28,9 @@
   .title { font-weight: 500; }
   .addr { color: var(--muted); font-size: 12px; }
   a { color: var(--accent); }
+  a.listing { display: block; color: inherit; text-decoration: none; }
+  a.listing .title { color: var(--accent); }
+  a.listing:hover .title { text-decoration: underline; }
   button.hide { padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--fg); cursor: pointer; font-size: 12px; }
   button.hide:hover { border-color: var(--muted); }
   tr.hidden td { opacity: 0.45; }
@@ -58,7 +61,6 @@
       <th data-key="score" data-dir="desc">Score</th>
       <th data-key="price">Price</th>
       <th data-key="title">Listing</th>
-      <th>Link</th>
       <th></th>
     </tr></thead>
     <tbody id="rows"></tbody>
@@ -164,8 +166,7 @@ function render() {
     <tr class="${isHidden ? 'hidden' : ''}">
       <td class="score">${d.score}</td>
       <td>${d.price === null ? '—' : '$' + d.price.toLocaleString()}</td>
-      <td><div class="title">${esc(d.title)}</div><div class="addr">${esc(d.location)}</div></td>
-      <td><a href="${esc(d.url)}" target="_blank" rel="noopener">Open ↗</a></td>
+      <td><a class="listing" href="${esc(d.url)}" target="_blank" rel="noopener"><div class="title">${esc(d.title)}</div><div class="addr">${esc(d.location)}</div></a></td>
       <td><button class="hide" data-url="${esc(d.url)}">${isHidden ? 'Unhide' : 'Hide'}</button></td>
     </tr>`;
   }).join('');
